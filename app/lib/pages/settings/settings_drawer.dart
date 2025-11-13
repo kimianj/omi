@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:omi/backend/auth.dart';
 import 'package:omi/backend/preferences.dart';
@@ -15,6 +17,7 @@ import 'package:omi/utils/platform/platform_service.dart';
 import 'package:omi/widgets/dialog.dart';
 import 'package:intercom_flutter/intercom_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
@@ -49,6 +52,7 @@ class SettingsDrawer extends StatefulWidget {
 class _SettingsDrawerState extends State<SettingsDrawer> {
   String? version;
   String? buildVersion;
+  final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
   @override
   void initState() {
@@ -58,6 +62,79 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
       buildVersion = packageInfo.buildNumber.toString();
       setState(() {});
     });
+  }
+
+  Future<String> _getDeviceInfoString() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      String deviceInfo = 'App Version: ${packageInfo.version}\n';
+      deviceInfo += 'Build: ${packageInfo.buildNumber}\n';
+
+      if (Platform.isIOS) {
+        final iosInfo = await _deviceInfo.iosInfo;
+        deviceInfo += 'Device: ${iosInfo.name} (${iosInfo.model})\n';
+        deviceInfo += 'OS: iOS ${iosInfo.systemVersion}';
+      } else if (Platform.isAndroid) {
+        final androidInfo = await _deviceInfo.androidInfo;
+        deviceInfo += 'Device: ${androidInfo.model}\n';
+        deviceInfo += 'OS: Android ${androidInfo.version.release} (SDK ${androidInfo.version.sdkInt})';
+      } else if (Platform.isMacOS) {
+        final macInfo = await _deviceInfo.macOsInfo;
+        deviceInfo += 'Device: ${macInfo.model}\n';
+        deviceInfo += 'OS: macOS ${macInfo.osRelease}';
+      } else if (Platform.isWindows) {
+        final windowsInfo = await _deviceInfo.windowsInfo;
+        deviceInfo += 'Device: ${windowsInfo.computerName}\n';
+        deviceInfo += 'OS: Windows ${windowsInfo.displayVersion}';
+      } else {
+        deviceInfo += 'Device: Unknown\n';
+        deviceInfo += 'OS: Unknown';
+      }
+
+      return deviceInfo;
+    } catch (e) {
+      // Fallback if device info fails
+      return 'App Version: ${version ?? "Unknown"}\nBuild: ${buildVersion ?? "Unknown"}';
+    }
+  }
+
+  Future<void> _copyVersionInfo(BuildContext context) async {
+    try {
+      final deviceInfoString = await _getDeviceInfoString();
+      await Clipboard.setData(ClipboardData(text: deviceInfoString));
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Version information copied to clipboard',
+              style: TextStyle(
+                color: Color.fromARGB(255, 255, 255, 255),
+                fontSize: 12.0,
+              ),
+            ),
+            duration: Duration(milliseconds: 2000),
+            backgroundColor: Color(0xFF1C1C1E),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Failed to copy version information',
+              style: TextStyle(
+                color: Color.fromARGB(255, 255, 255, 255),
+                fontSize: 12.0,
+              ),
+            ),
+            duration: Duration(milliseconds: 2000),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSettingsItem({
@@ -166,23 +243,35 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
           // Share & Get Section
           _buildSectionContainer(
             children: [
-              _buildSettingsItem(
-                title: 'Share Omi for iPhone',
-                icon: const FaIcon(FontAwesomeIcons.solidShareFromSquare, color: Colors.white, size: 20),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await Share.share('https://apps.apple.com/us/app/omi-ai-scale-yourself/id6502156163');
-                },
-              ),
-              const Divider(height: 1, color: Color(0xFF3C3C43)),
-              _buildSettingsItem(
-                title: 'Share Omi for Mac',
-                icon: const FaIcon(FontAwesomeIcons.desktop, color: Color(0xFF8E8E93), size: 20),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await Share.share('https://apps.apple.com/us/app/omi-ai-scale-yourself/id6502156163');
-                },
-              ),
+              // Platform-specific share options
+              if (Platform.isIOS) ...[
+                _buildSettingsItem(
+                  title: 'Share Omi for iPhone',
+                  icon: const FaIcon(FontAwesomeIcons.solidShareFromSquare, color: Colors.white, size: 20),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await Share.share('https://apps.apple.com/us/app/omi-ai-scale-yourself/id6502156163');
+                  },
+                ),
+                const Divider(height: 1, color: Color(0xFF3C3C43)),
+                _buildSettingsItem(
+                  title: 'Share Omi for Mac',
+                  icon: const FaIcon(FontAwesomeIcons.desktop, color: Color(0xFF8E8E93), size: 20),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await Share.share('https://apps.apple.com/us/app/omi-ai-scale-yourself/id6502156163');
+                  },
+                ),
+              ] else if (Platform.isAndroid) ...[
+                _buildSettingsItem(
+                  title: 'Share Omi for Android',
+                  icon: const FaIcon(FontAwesomeIcons.googlePlay, color: Colors.white, size: 20),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await Share.share('https://play.google.com/store/apps/details?id=com.friend.ios');
+                  },
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 32),
@@ -285,15 +374,15 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                     builder: (ctx) {
                       return getDialog(
                         ctx,
-                        () => Navigator.of(ctx).pop(),
-                        () async {
+                            () => Navigator.of(ctx).pop(),
+                            () async {
                           Navigator.of(ctx).pop(); // Close dialog first
                           await SharedPreferencesUtil().clearUserPreferences();
                           personaProvider.setRouting(PersonaProfileRouting.no_device);
                           await signOut();
-                         if (context.mounted){
+                          if (context.mounted){
                             routeToPage(context, const AppShell(), replace: true);
-                         }
+                          }
                         },
                         "Sign Out?",
                         "Are you sure you want to sign out?",
@@ -306,14 +395,39 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
           ),
           const SizedBox(height: 32),
 
-          // Version Info
-          Text(
-            '${version ?? ""}${buildVersion != null ? " ($buildVersion)" : ""}',
-            style: const TextStyle(
-              color: Color(0xFF8E8E93),
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-            ),
+          // Version Info with Copy Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                version != null && buildVersion != null
+                    ? '$version ($buildVersion)'
+                    : version != null
+                    ? version!
+                    : buildVersion != null
+                    ? 'Build $buildVersion'
+                    : 'Loading...',
+                style: const TextStyle(
+                  color: Color(0xFF8E8E93),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              if (version != null || buildVersion != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _copyVersionInfo(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    child: const Icon(
+                      Icons.copy,
+                      color: Color(0xFF8E8E93),
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 24),
         ],
@@ -357,8 +471,8 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                   builder: (ctx) {
                     return getDialog(
                       ctx,
-                      () => Navigator.of(ctx).pop(),
-                      () async {
+                          () => Navigator.of(ctx).pop(),
+                          () async {
                         Navigator.of(ctx).pop(); // Close dialog first
                         SharedPreferencesUtil().hasOmiDevice = null;
                         SharedPreferencesUtil().verifiedPersonaId = null;
@@ -379,14 +493,39 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
         ),
         const SizedBox(height: 32),
 
-        // Version Info
-        Text(
-          '${version ?? ""}${buildVersion != null ? " ($buildVersion)" : ""}',
-          style: const TextStyle(
-            color: Color(0xFF8E8E93),
-            fontSize: 13,
-            fontWeight: FontWeight.w400,
-          ),
+        // Version Info with Copy Button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              version != null && buildVersion != null
+                  ? '$version ($buildVersion)'
+                  : version != null
+                  ? version!
+                  : buildVersion != null
+                  ? 'Build $buildVersion'
+                  : 'Loading...',
+              style: const TextStyle(
+                color: Color(0xFF8E8E93),
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            if (version != null || buildVersion != null) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _copyVersionInfo(context),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  child: const Icon(
+                    Icons.copy,
+                    color: Color(0xFF8E8E93),
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 24),
       ],
@@ -456,7 +595,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child:
-                  widget.mode == SettingsMode.omi ? _buildOmiModeContent(context) : _buildNoDeviceModeContent(context),
+              widget.mode == SettingsMode.omi ? _buildOmiModeContent(context) : _buildNoDeviceModeContent(context),
             ),
           ),
         ],
