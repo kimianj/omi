@@ -23,6 +23,7 @@ import 'package:omi/providers/message_provider.dart';
 import 'package:omi/providers/app_provider.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
 import 'package:omi/utils/other/temp.dart';
+import 'package:omi/ui/atoms/omi_send_button.dart';
 import 'package:omi/widgets/dialog.dart';
 import 'package:omi/widgets/extensions/string.dart';
 import 'package:provider/provider.dart';
@@ -137,178 +138,178 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                 Expanded(
                   child: provider.isLoadingMessages && !provider.hasCachedMessages
                       ? Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              provider.firstTimeLoadingText,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        )
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        provider.firstTimeLoadingText,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  )
                       : provider.isClearingChat
-                          ? const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                                SizedBox(height: 16),
-                                Text(
-                                  "Deleting your messages from Omi's memory...",
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ],
-                            )
-                          : (provider.messages.isEmpty)
-                              ? Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(bottom: 32.0),
-                                    child: Text(
-                                        connectivityProvider.isConnected
-                                            ? 'No messages yet!\nWhy don\'t you start a conversation?'
-                                            : 'Please check your internet connection and try again',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(color: Colors.white)),
-                                  ),
-                                )
-                              : ListView.builder(
-                                  shrinkWrap: false,
-                                  reverse: true,
-                                  controller: scrollController,
-                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                                  itemCount: provider.messages.length,
-                                  itemBuilder: (context, chatIndex) {
-                                    final message = provider.messages[chatIndex];
-                                    double topPadding = chatIndex == provider.messages.length - 1 ? 8 : 16;
-                                    if (chatIndex != 0) message.askForNps = false;
+                      ? const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        "Deleting your messages from Omi's memory...",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  )
+                      : (provider.messages.isEmpty)
+                      ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 32.0),
+                      child: Text(
+                          connectivityProvider.isConnected
+                              ? 'No messages yet!\nWhy don\'t you start a conversation?'
+                              : 'Please check your internet connection and try again',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white)),
+                    ),
+                  )
+                      : ListView.builder(
+                    shrinkWrap: false,
+                    reverse: true,
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                    itemCount: provider.messages.length,
+                    itemBuilder: (context, chatIndex) {
+                      final message = provider.messages[chatIndex];
+                      double topPadding = chatIndex == provider.messages.length - 1 ? 8 : 16;
+                      if (chatIndex != 0) message.askForNps = false;
 
-                                    double bottomPadding = chatIndex == 0 ? 16 : 0;
-                                    return GestureDetector(
-                                      onLongPress: () {
-                                        showModalBottomSheet(
-                                          context: context,
-                                          shape: const RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.vertical(
-                                              top: Radius.circular(20),
+                      double bottomPadding = chatIndex == 0 ? 16 : 0;
+                      return GestureDetector(
+                        onLongPress: () {
+                          showModalBottomSheet(
+                            context: context,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(20),
+                              ),
+                            ),
+                            builder: (context) => MessageActionMenu(
+                              message: message.text.decodeString,
+                              onCopy: () async {
+                                MixpanelManager()
+                                    .track('Chat Message Copied', properties: {'message': message.text});
+                                await Clipboard.setData(ClipboardData(text: message.text.decodeString));
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Message copied to clipboard.',
+                                        style: TextStyle(
+                                          color: Color.fromARGB(255, 255, 255, 255),
+                                          fontSize: 12.0,
+                                        ),
+                                      ),
+                                      duration: Duration(milliseconds: 2000),
+                                    ),
+                                  );
+                                  Navigator.pop(context);
+                                }
+                              },
+                              onSelectText: () {
+                                MixpanelManager().track('Chat Message Text Selected',
+                                    properties: {'message': message.text});
+                                routeToPage(context, SelectTextScreen(message: message));
+                              },
+                              onShare: () {
+                                MixpanelManager()
+                                    .track('Chat Message Shared', properties: {'message': message.text});
+                                Share.share(
+                                  '${message.text.decodeString}\n\nResponse from Omi. Get yours at https://omi.me',
+                                  subject: 'Chat with Omi',
+                                );
+                                Navigator.pop(context);
+                              },
+                              onReport: () {
+                                if (message.sender == MessageSender.human) {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'You cannot report your own messages.',
+                                        style: TextStyle(
+                                          color: Color.fromARGB(255, 255, 255, 255),
+                                          fontSize: 12.0,
+                                        ),
+                                      ),
+                                      duration: Duration(milliseconds: 2000),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                showDialog(
+                                  context: context,
+                                  builder: (context) {
+                                    return getDialog(
+                                      context,
+                                          () {
+                                        Navigator.of(context).pop();
+                                      },
+                                          () {
+                                        MixpanelManager().track('Chat Message Reported',
+                                            properties: {'message': message.text});
+                                        Navigator.of(context).pop();
+                                        Navigator.of(context).pop();
+                                        context.read<MessageProvider>().removeLocalMessage(message.id);
+                                        reportMessageServer(message.id);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Message reported successfully.',
+                                              style: TextStyle(
+                                                color: Color.fromARGB(255, 255, 255, 255),
+                                                fontSize: 12.0,
+                                              ),
                                             ),
-                                          ),
-                                          builder: (context) => MessageActionMenu(
-                                            message: message.text.decodeString,
-                                            onCopy: () async {
-                                              MixpanelManager()
-                                                  .track('Chat Message Copied', properties: {'message': message.text});
-                                              await Clipboard.setData(ClipboardData(text: message.text.decodeString));
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Message copied to clipboard.',
-                                                      style: TextStyle(
-                                                        color: Color.fromARGB(255, 255, 255, 255),
-                                                        fontSize: 12.0,
-                                                      ),
-                                                    ),
-                                                    duration: Duration(milliseconds: 2000),
-                                                  ),
-                                                );
-                                                Navigator.pop(context);
-                                              }
-                                            },
-                                            onSelectText: () {
-                                              MixpanelManager().track('Chat Message Text Selected',
-                                                  properties: {'message': message.text});
-                                              routeToPage(context, SelectTextScreen(message: message));
-                                            },
-                                            onShare: () {
-                                              MixpanelManager()
-                                                  .track('Chat Message Shared', properties: {'message': message.text});
-                                              Share.share(
-                                                '${message.text.decodeString}\n\nResponse from Omi. Get yours at https://omi.me',
-                                                subject: 'Chat with Omi',
-                                              );
-                                              Navigator.pop(context);
-                                            },
-                                            onReport: () {
-                                              if (message.sender == MessageSender.human) {
-                                                Navigator.pop(context);
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'You cannot report your own messages.',
-                                                      style: TextStyle(
-                                                        color: Color.fromARGB(255, 255, 255, 255),
-                                                        fontSize: 12.0,
-                                                      ),
-                                                    ),
-                                                    duration: Duration(milliseconds: 2000),
-                                                  ),
-                                                );
-                                                return;
-                                              }
-                                              showDialog(
-                                                context: context,
-                                                builder: (context) {
-                                                  return getDialog(
-                                                    context,
-                                                    () {
-                                                      Navigator.of(context).pop();
-                                                    },
-                                                    () {
-                                                      MixpanelManager().track('Chat Message Reported',
-                                                          properties: {'message': message.text});
-                                                      Navigator.of(context).pop();
-                                                      Navigator.of(context).pop();
-                                                      context.read<MessageProvider>().removeLocalMessage(message.id);
-                                                      reportMessageServer(message.id);
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Text(
-                                                            'Message reported successfully.',
-                                                            style: TextStyle(
-                                                              color: Color.fromARGB(255, 255, 255, 255),
-                                                              fontSize: 12.0,
-                                                            ),
-                                                          ),
-                                                          duration: Duration(milliseconds: 2000),
-                                                        ),
-                                                      );
-                                                    },
-                                                    'Report Message',
-                                                    'Are you sure you want to report this message?',
-                                                  );
-                                                },
-                                              );
-                                            },
+                                            duration: Duration(milliseconds: 2000),
                                           ),
                                         );
                                       },
-                                      child: Padding(
-                                        key: ValueKey(message.id),
-                                        padding: EdgeInsets.only(bottom: bottomPadding, top: topPadding),
-                                        child: message.sender == MessageSender.ai
-                                            ? AIMessage(
-                                                showTypingIndicator: provider.showTypingIndicator && chatIndex == 0,
-                                                message: message,
-                                                sendMessage: _sendMessageUtil,
-                                                displayOptions: provider.messages.length <= 1 &&
-                                                    provider.messageSenderApp(message.appId)?.isNotPersona() == true,
-                                                appSender: provider.messageSenderApp(message.appId),
-                                                updateConversation: (ServerConversation conversation) {
-                                                  context.read<ConversationProvider>().updateConversation(conversation);
-                                                },
-                                                setMessageNps: (int value) {
-                                                  provider.setMessageNps(message, value);
-                                                },
-                                              )
-                                            : HumanMessage(message: message),
-                                      ),
+                                      'Report Message',
+                                      'Are you sure you want to report this message?',
                                     );
                                   },
-                                ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          key: ValueKey(message.id),
+                          padding: EdgeInsets.only(bottom: bottomPadding, top: topPadding),
+                          child: message.sender == MessageSender.ai
+                              ? AIMessage(
+                            showTypingIndicator: provider.showTypingIndicator && chatIndex == 0,
+                            message: message,
+                            sendMessage: _sendMessageUtil,
+                            displayOptions: provider.messages.length <= 1 &&
+                                provider.messageSenderApp(message.appId)?.isNotPersona() == true,
+                            appSender: provider.messageSenderApp(message.appId),
+                            updateConversation: (ServerConversation conversation) {
+                              context.read<ConversationProvider>().updateConversation(conversation);
+                            },
+                            setMessageNps: (int value) {
+                              provider.setMessageNps(message, value);
+                            },
+                          )
+                              : HumanMessage(message: message),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 // Send message area - fixed at bottom
                 Container(
@@ -355,9 +356,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                                       borderRadius: BorderRadius.circular(16),
                                       image: provider.selectedFileTypes[idx] == 'image'
                                           ? DecorationImage(
-                                              image: FileImage(provider.selectedFiles[idx]),
-                                              fit: BoxFit.cover,
-                                            )
+                                        image: FileImage(provider.selectedFiles[idx]),
+                                        fit: BoxFit.cover,
+                                      )
                                           : null,
                                     ),
                                     child: Stack(
@@ -471,44 +472,44 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                                       Expanded(
                                         child: _showVoiceRecorder
                                             ? VoiceRecorderWidget(
-                                                onTranscriptReady: (transcript) {
-                                                  setState(() {
-                                                    textController.text = transcript;
-                                                    _showVoiceRecorder = false;
-                                                    context.read<MessageProvider>().setNextMessageOriginIsVoice(true);
-                                                  });
-                                                },
-                                                onClose: () {
-                                                  setState(() {
-                                                    _showVoiceRecorder = false;
-                                                  });
-                                                },
-                                              )
+                                          onTranscriptReady: (transcript) {
+                                            setState(() {
+                                              textController.text = transcript;
+                                              _showVoiceRecorder = false;
+                                              context.read<MessageProvider>().setNextMessageOriginIsVoice(true);
+                                            });
+                                          },
+                                          onClose: () {
+                                            setState(() {
+                                              _showVoiceRecorder = false;
+                                            });
+                                          },
+                                        )
                                             : Container(
-                                                height: 44,
-                                                alignment: Alignment.centerLeft,
-                                                child: TextField(
-                                                  enabled: true,
-                                                  controller: textController,
-                                                  focusNode: textFieldFocusNode,
-                                                  obscureText: false,
-                                                  textAlign: TextAlign.start,
-                                                  textAlignVertical: TextAlignVertical.center,
-                                                  decoration: const InputDecoration(
-                                                    hintText: 'Ask Anything',
-                                                    hintStyle: TextStyle(fontSize: 16.0, color: Colors.white54),
-                                                    focusedBorder: InputBorder.none,
-                                                    enabledBorder: InputBorder.none,
-                                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                                                    isDense: true,
-                                                  ),
-                                                  maxLines: 1,
-                                                  keyboardType: TextInputType.text,
-                                                  textCapitalization: TextCapitalization.sentences,
-                                                  style:
-                                                      const TextStyle(fontSize: 16.0, color: Colors.white, height: 1.0),
-                                                ),
-                                              ),
+                                          height: 44,
+                                          alignment: Alignment.centerLeft,
+                                          child: TextField(
+                                            enabled: true,
+                                            controller: textController,
+                                            focusNode: textFieldFocusNode,
+                                            obscureText: false,
+                                            textAlign: TextAlign.start,
+                                            textAlignVertical: TextAlignVertical.center,
+                                            decoration: const InputDecoration(
+                                              hintText: 'Ask Anything',
+                                              hintStyle: TextStyle(fontSize: 16.0, color: Colors.white54),
+                                              focusedBorder: InputBorder.none,
+                                              enabledBorder: InputBorder.none,
+                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                              isDense: true,
+                                            ),
+                                            maxLines: 1,
+                                            keyboardType: TextInputType.text,
+                                            textCapitalization: TextCapitalization.sentences,
+                                            style:
+                                            const TextStyle(fontSize: 16.0, color: Colors.white, height: 1.0),
+                                          ),
+                                        ),
                                       ),
                                       if (shouldShowVoiceRecorderButton())
                                         GestureDetector(
@@ -537,46 +538,38 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                               // const SizedBox(width: 8),
                               !shouldShowSendButton(provider)
                                   ? const SizedBox.shrink()
-                                  : GestureDetector(
-                                      onTap: provider.sendingMessage || provider.isUploadingFiles
-                                          ? null
-                                          : () {
-                                              HapticFeedback.mediumImpact(); // Changed from lightImpact to mediumImpact
-                                              String message = textController.text;
-                                              if (message.isEmpty) return;
-                                              if (connectivityProvider.isConnected) {
-                                                _sendMessageUtil(message);
-                                              } else {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(
-                                                    content:
-                                                        Text('Please check your internet connection and try again'),
-                                                    duration: Duration(seconds: 2),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                      child: Container(
-                                        height: 32,
-                                        width: 32,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(22),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2),
+                                  : ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: textController,
+                                builder: (context, value, child) {
+                                  bool canSend = textController.text.trim().isNotEmpty &&
+                                      !provider.isUploadingFiles &&
+                                      connectivityProvider.isConnected;
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(left: 8),
+                                    child: OmiSendButton(
+                                      enabled: canSend,
+                                      onPressed: canSend
+                                          ? () {
+                                        String message = textController.text.trim();
+                                        if (message.isEmpty) return;
+                                        if (connectivityProvider.isConnected) {
+                                          _sendMessageUtil(message);
+                                        } else {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                  'Please check your internet connection and try again'),
+                                              duration: Duration(seconds: 2),
                                             ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          FontAwesomeIcons.arrowUp,
-                                          color: Color(0xFF35343B),
-                                          size: 18,
-                                        ),
-                                      ),
+                                          );
+                                        }
+                                      }
+                                          : null,
                                     ),
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -783,19 +776,19 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
       ],
       bottom: provider.isLoadingMessages
           ? PreferredSize(
-              preferredSize: const Size.fromHeight(32),
-              child: Container(
-                width: double.infinity,
-                height: 32,
-                color: Colors.green,
-                child: const Center(
-                  child: Text(
-                    'Syncing messages with server...',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-              ),
-            )
+        preferredSize: const Size.fromHeight(32),
+        child: Container(
+          width: double.infinity,
+          height: 32,
+          color: Colors.green,
+          child: const Center(
+            child: Text(
+              'Syncing messages with server...',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ),
+      )
           : null,
     );
   }
@@ -972,9 +965,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                   ),
                   selectedApp == null
                       ? const SizedBox(
-                          width: 24,
-                          child: Icon(Icons.check, color: Colors.white60, size: 16),
-                        )
+                    width: 24,
+                    child: Icon(Icons.check, color: Colors.white60, size: 16),
+                  )
                       : const SizedBox.shrink(),
                 ],
               ),
@@ -1005,9 +998,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                     ),
                     selectedApp?.id == app.id
                         ? const SizedBox(
-                            width: 24,
-                            child: Icon(Icons.check, color: Colors.white60, size: 16),
-                          )
+                      width: 24,
+                      child: Icon(Icons.check, color: Colors.white60, size: 16),
+                    )
                         : const SizedBox.shrink(),
                   ],
                 ),
